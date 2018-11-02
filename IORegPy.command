@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import os, sys, tempfile, shutil, plistlib, binascii, itertools
+import os, sys, tempfile, shutil, plistlib, binascii, itertools, base64
 from Scripts import *
 if sys.version_info >= (3, 0):
     from itertools import zip_longest as zl
@@ -45,6 +45,54 @@ class IOReg:
             pass
         return ty
 
+    def format_hex(self, hex_data):
+        hex_list = map(''.join, zl(*[iter(binascii.hexlify(hex_data))]*8, fillvalue=''))
+        listlist = []
+        temp = []
+        for x in hex_list:
+            if len(temp) < 7:
+                temp.append(x)
+                continue
+            listlist.append(temp)
+            temp = []
+        # Make sure we get the last bit if needed
+        if len(temp):
+            listlist.append(temp)
+        hex_blocks = []
+        for x in listlist:
+            hex_blocks.append(" ".join(x))
+        if len(hex_blocks) > 1:
+            return "Hex:    <{}\n         {}>".format(hex_blocks[0], "\n         ".join(hex_blocks[1:]))
+        else:
+            return "Hex:    <{}>".format(hex_blocks[0])
+    
+    def format_text(self, str_chars, **kwargs):
+        str_chars = str(str_chars)
+        if sys.version_info >= (3, 0):
+            try:
+                str_chars = str_chars.decode("utf-8")
+            except:
+                pass
+        pad        = kwargs.get("pad", 9)
+        block_size = kwargs.get("block_size", 62)
+        block_pad  = kwargs.get("block_pad", "")
+        max_blocks = kwargs.get("max_blocks", 1)
+        blocks = map("".join, zl(*[iter(str_chars)]*block_size, fillvalue=""))
+        l = []
+        t = []
+        for x in blocks:
+            if len(t) < max_blocks:
+                t.append(x)
+                continue
+            l.append(t)
+            t = []
+        if len(t):
+            l.append(t)
+        out_blocks = []
+        for x in l:
+            out_blocks.append(" "*pad + block_pad.join(x))
+        return "\n".join(out_blocks)
+
     def main(self):
         # Gather our current path
         self.u.resize(80,24)
@@ -67,7 +115,7 @@ class IOReg:
             d = True
             search_keys = []
             found_text = ""
-            for key in current:
+            for key in sorted(current):
                 if self.search_term:
                     if not self.search_term.lower() in key.lower():
                         continue
@@ -86,11 +134,34 @@ class IOReg:
             print("You can choose an item from 1-{}.".format(len(current)))
         else:
             # Not a list or dict - must be a value
-            if isinstance(current, plistlib.Data):
-                current = binascii.hexlify(current.data)
-                current = map(''.join, zl(*[iter(current)]*8, fillvalue=''))
-                current = "<{}>".format(" ".join(current))
-            print(current)
+            if isinstance(current, (plistlib.Data, bytes)):
+                printed = False
+                if isinstance(current, plistlib.Data):
+                    current = current.data
+                #try:
+                print("Hex:\n{}".format(self.format_text(binascii.hexlify(current), block_size = 8, block_pad = " ", max_blocks = 7)))
+                #    printed = True
+                #except:
+                #    pass
+                #try:
+                print("Base64:\n{}".format(self.format_text(base64.b64encode(current))))
+                #    printed = True
+                #except:
+                #    pass
+                try:
+                    print("String:\n         {}".format(current))
+                    printed = True
+                except:
+                    pass
+                try:
+                    print("Decimal:\n{}".format(self.format_text(str(int(binascii.hexlify(current), 16)))))
+                    printed = True
+                except:
+                    pass
+                if not printed:
+                    print("Data would not convert to hex, base64, or string.")
+            else:
+                print(current)
         self.u.resize(80, 24 if height < 24 else height)
         print("Q. Quit")
         print("R. Go To Root")
