@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 import os, sys, tempfile, shutil, plistlib, binascii, itertools, base64
 from Scripts import *
 if sys.version_info >= (3, 0):
